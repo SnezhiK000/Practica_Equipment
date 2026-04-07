@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="ru">
+<head>
+    <link rel="icon" href="{% static 'icon.png' %}" type="image/png">
+    <meta charset="UTF-8">
+    <title>Все заявки - Техник</title>
+    <!-- Ваши стили остаются без изменений -->
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #e8f5e9 0%, #b2dfdb 100%); color: #263238; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { background: #ffffff; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .nav-menu { background: #ffffff; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .nav-link { padding: 8px 16px; background: #26a69a; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; }
+        .nav-link:hover { background: #00897b; }
+        .nav-link.danger { background: #ef5350; }
+        .filters { background: #ffffff; padding: 20px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: end; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 14px; font-weight: bold; color: #00695c; margin-bottom: 5px; }
+        .form-group input, .form-group select { padding: 8px; border: 1px solid #b0bec5; border-radius: 4px; min-width: 200px; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th { background: #80cbc4; color: #004d40; padding: 12px; text-align: left; font-weight: 600; }
+        td { padding: 10px; border-bottom: 1px solid #e0f2f1; }
+        tr:hover { background: #e0f7fa; }
+        .btn-sm { padding: 4px 8px; font-size: 12px; text-decoration: none; border-radius: 4px; color: white; background: #ff9800; border: none; cursor: pointer; }
+        .btn-danger-sm { background: #ef5350; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Все заявки</h1>
+        <p>Добро пожаловать, <strong>{{ user_name }}</strong></p>
+    </div>
+
+    <nav class="nav-menu">
+        <a href="{% url 'show_new_requests' %}" class="nav-link">Новые заявки</a>
+        <a href="{% url 'show_technician' %}" class="nav-link" style="background:#00695c;">Все заявки</a>
+        <a href="{% url 'create_request_technician' %}" class="nav-link">Создать заявку</a>
+        <a href="{% url 'show_equipment' %}" class="nav-link">Оборудование</a>
+        <a href="{% url 'statistics_view' %}" class="nav-link">Статистика</a>
+        <a href="{% url 'show_customer' %}" class="nav-link">Войти как заказчик</a>
+        <a href="{% url 'logout_view' %}" class="nav-link danger">Выйти</a>
+    </nav>
+
+    <!-- Фильтры -->
+    <form method="GET" class="filters" id="filterForm">
+        <div class="form-group">
+            <label>Поиск:</label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Описание, номер, ФИО...">
+        </div>
+        <div class="form-group">
+            <label>Статус:</label>
+            <select name="status">
+                <option value="">Все статусы</option>
+                {% for status in statuses %}
+                    <option value="{{ status.id }}" {% if status_filter == status.id %}selected{% endif %}>{{ status.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Сотрудник:</label>
+            <input type="text" name="employee" value="{{ employee_filter }}" placeholder="ФИО">
+        </div>
+        <div class="form-group">
+            <label>Сортировка:</label>
+            <select name="sort">
+                <option value="-registration_date" {% if sort_by == '-registration_date' %}selected{% endif %}>По дате (убыв.)</option>
+                <option value="registration_date" {% if sort_by == 'registration_date' %}selected{% endif %}>По дате (возр.)</option>
+                <option value="act_number" {% if sort_by == 'act_number' %}selected{% endif %}>По номеру</option>
+                <option value="requester__last_name" {% if sort_by == 'requester__last_name' %}selected{% endif %}>По сотруднику</option>
+                <option value="equipment__status__name" {% if sort_by == 'equipment__status__name' %}selected{% endif %}>По статусу</option>
+            </select>
+        </div>
+        <button type="submit" class="nav-link" style="border:none; cursor:pointer;">Применить</button>
+        <a href="{% url 'show_technician' %}" class="nav-link danger" style="border:none; cursor:pointer; text-align:center;">Сброс</a>
+    </form>
+
+    <table>
+        <thead>
+            <tr>
+                <th>№</th>
+                <th>Дата</th>
+                <th>Описание</th>
+                <th>Заказчик</th>
+                <th>Оборудование</th>
+                <th>Статус</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+            <tr>
+                <td>{{ req.act_number }}</td>
+                <td>{{ req.registration_date|date:"d.m.Y H:i" }}</td>
+                <td>{{ req.problem_description|truncatewords:8 }}</td>
+                <td>{{ req.requester.last_name }} {{ req.requester.first_name }}</td>
+                <td>{{ req.equipment.inventory_number }}</td>
+                <td>{{ req.equipment.status.name }}</td>
+                <td>
+                    <a href="{% url 'edit_request' req.act_number %}" class="btn-sm">Изменить</a>
+
+                    <form method="POST" action="{% url 'delete_request_technician' req.act_number %}" style="display:inline;" onsubmit="return confirm('Вы уверены?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-sm btn-danger-sm">🗑️</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center;">Заявок не найдено</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('filterForm');
+        const inputs = form.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            if (input.type === 'text') {
+                let timeout;
+                input.addEventListener('input', () => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => form.submit(), 800);
+                });
+            } else {
+                input.addEventListener('change', () => form.submit());
+            }
+        });
+    });
+</script>
+</body>
+</html>

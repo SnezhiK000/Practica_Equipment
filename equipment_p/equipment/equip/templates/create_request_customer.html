@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="ru">
+<head>
+    <link rel="icon" href="{% static 'icon.png' %}" type="image/png">
+    <meta charset="UTF-8">
+    <title>Создание заявки - Сотрудник</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #e8f5e9 0%, #b2dfdb 100%); color: #263238; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { color: #00695c; margin-top: 0; }
+        .nav-bar { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .nav-link { text-decoration: none; color: white; background: #26a69a; padding: 8px 15px; border-radius: 5px; font-weight: 600; font-size: 14px; }
+        .nav-link:hover { background: #00897b; }
+        .nav-link.danger { background: #ef5350; }
+        .info-block { background: #e0f7fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #00695c; }
+        .info-row { margin-bottom: 5px; font-size: 14px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #004d40; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #b0bec5; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
+        textarea { height: 100px; resize: vertical; }
+        button { background: #26a69a; color: white; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; margin-top: 10px; }
+        button:hover { background: #00897b; }
+        .messages { color: #c62828; background: #ffebee; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #ef9a9a; }
+        .cancel-link { display: block; text-align: center; margin-top: 10px; color: #c62828; text-decoration: none; font-weight: 600; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="nav-bar">
+        <a href="{% url 'show_customer' %}" class="nav-link">← Назад</a>
+        <a href="{% url 'show_technician' %}" class="nav-link">Режим техника</a>
+        <a href="{% url 'logout_view' %}" class="nav-link danger">Выйти</a>
+    </div>
+
+    <h2>Создание новой заявки</h2>
+    <p>Добро пожаловать, <strong>{{ user_name }}</strong></p>
+
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}{{ message }}{% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <div class="info-block">
+            <div class="info-row"><strong>ФИО:</strong> {{ employee.last_name }} {{ employee.first_name }} {{ employee.middle_name }}</div>
+            <div class="info-row"><strong>Отдел:</strong> {{ employee.department.name|default:"-" }}</div>
+            <div class="info-row"><strong>Кабинет:</strong> {{ employee.office.number }} ({{ employee.office.building.name }})</div>
+        </div>
+
+        <div class="form-group">
+            <label>Оборудование *: </label>
+            <select name="equipment" required>
+                <option value="">-- Выберите оборудование --</option>
+                {% for equip in equipment_list %}
+                    <option value="{{ equip.inventory_number }}">
+                        {{ equip.inventory_number }} - {{ equip.model.name }} ({{ equip.configuration }})
+                    </option>
+                {% empty %}
+                    <option disabled>В вашем кабинете нет оборудования</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Описание неисправности *: </label>
+            <textarea name="problem_description" required placeholder="Подробно опишите проблему..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Категория: </label>
+            <select name="category">
+                <option value="">-- Не выбрано --</option>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Приоритет: </label>
+            <select name="priority">
+                <option value="">-- Не выбрано --</option>
+                {% for pri in priorities %}
+                    <option value="{{ pri.id }}">{{ pri.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="submit">Создать заявку</button>
+        <a href="{% url 'show_customer' %}" class="cancel-link">Отмена</a>
+    </form>
+</div>
+</body>
+</html>
