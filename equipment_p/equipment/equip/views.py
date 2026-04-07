@@ -120,12 +120,15 @@ def create_request_customer(request):
     if 'user_id' not in request.session:
         messages.error(request, 'Необходимо авторизоваться')
         return redirect('login_view')
+
     if request.session.get('form_open', False):
         messages.error(request, 'Форма уже открыта!')
         return redirect('show_customer')
 
     try:
         one_employee = Employee.objects.get(id=request.session['user_id'], delete_date__isnull=True)
+
+        # Фильтруем оборудование только для кабинета сотрудника
         equipment_list = Equipment.objects.filter(
             assigned_office=one_employee.office,
             delete_date__isnull=True
@@ -134,34 +137,45 @@ def create_request_customer(request):
         if request.method == 'POST':
             try:
                 request.session['form_open'] = False
-                equipment_id = request.POST.get('equipment')
+
+                equipment_inv_num = request.POST.get('equipment')  # Получаем инв. номер
                 description = request.POST.get('problem_description', '').strip()
                 category_id = request.POST.get('category')
                 priority_id = request.POST.get('priority')
 
-                if not description or not equipment_id:
+                if not description or not equipment_inv_num:
                     messages.error(request, 'Заполните обязательные поля')
                     return redirect('create_request_customer')
 
-                equipment = Equipment.objects.get(id=equipment_id, delete_date__isnull=True)
+                # ИСПРАВЛЕНИЕ: Ищем по inventory_number, так как это primary_key
+                equipment = Equipment.objects.get(inventory_number=equipment_inv_num, delete_date__isnull=True)
+
                 category = RequestCategory.objects.get(id=category_id) if category_id else None
                 priority = Priority.objects.get(id=priority_id) if priority_id else None
 
+                # Генерация нового номера акта
+                last_req = RequestFix.objects.filter(delete_date__isnull=True).order_by('-act_number').first()
+                new_act_number = (last_req.act_number + 1) if last_req else 1
+
                 req = RequestFix(
-                    act_number=RequestFix.objects.filter(delete_date__isnull=True).count() + 1,
+                    act_number=new_act_number,
                     problem_description=description,
                     registration_date=timezone.now(),
                     requester=one_employee,
                     equipment=equipment,
                     category=category,
                     priority=priority,
-                    repair_stage=RepairStage.objects.first()
+                    repair_stage=RepairStage.objects.first()  # Ставим первый этап по умолчанию
                 )
                 req.save()
+
                 messages.success(request, 'Заявка создана!')
                 return redirect('show_customer')
+
+            except Equipment.DoesNotExist:
+                messages.error(request, 'Выбранное оборудование не найдено в базе.')
             except Exception as e:
-                messages.error(request, f'Ошибка: {str(e)}')
+                messages.error(request, f'Ошибка при создании: {str(e)}')
                 request.session['form_open'] = False
 
         request.session['form_open'] = True
@@ -173,11 +187,14 @@ def create_request_customer(request):
             'user_name': request.session.get('user_name', ''),
         }
         return render(request, 'create_request_customer.html', context)
+
+    except Employee.DoesNotExist:
+        messages.error(request, 'Сотрудник не найден.')
+        return redirect('login_view')
     except Exception as e:
         messages.error(request, f'Ошибка: {str(e)}')
         request.session['form_open'] = False
         return redirect('show_customer')
-
 
 # --------------------------------------------------------------
 # ЗАЯВКИ ТЕХНИКА
@@ -270,9 +287,12 @@ def create_request_technician(request):
     if 'user_id' not in request.session or request.session.get('user_role') != 'Техник':
         messages.error(request, 'Нет доступа')
         return redirect('login_view')
+
     try:
         technicians = Employee.objects.filter(delete_date__isnull=True, role__role_name='technician')
         customers = Employee.objects.filter(delete_date__isnull=True)
+        # ОШИБКА БЫЛА ЗДЕСЬ: Equipment не имеет поля id, используем inventory_number как PK, но filter работает по любому полю.
+        # Однако, если вы передадите inventory_number в POST, то get(inventory_number=...) сработает.
         equipment_list = Equipment.objects.filter(delete_date__isnull=True)
         statuses = EquipmentStatus.objects.filter(delete_date__isnull=True)
         categories = RequestCategory.objects.filter(delete_date__isnull=True)
@@ -282,7 +302,8 @@ def create_request_technician(request):
         if request.method == 'POST':
             try:
                 customer_id = request.POST.get('requester')
-                equipment_id = request.POST.get('equipment')
+                # Получаем inventory_number из формы
+                equipment_inv_num = request.POST.get('equipment')
                 technician_id = request.POST.get('assigned_technician')
                 description = request.POST.get('problem_description', '').strip()
                 category_id = request.POST.get('category')
@@ -290,13 +311,11 @@ def create_request_technician(request):
                 stage_id = request.POST.get('repair_stage')
                 date_done_str = request.POST.get('completion_date', '')
 
-                if not description or not equipment_id or not customer_id:
+                if not description or not equipment_inv_num or not customer_id:
                     messages.error(request, 'Заполните обязательные поля')
                     return redirect('create_request_technician')
-
+                equipment = Equipment.objects.get(inventory_number=equipment_inv_num, delete_date__isnull=True)
                 customer = Employee.objects.get(id=customer_id, delete_date__isnull=True)
-                equipment = Equipment.objects.get(id=equipment_id, delete_date__isnull=True)
-
                 assigned_tech = Employee.objects.get(id=technician_id) if technician_id else None
                 category = RequestCategory.objects.get(id=category_id) if category_id else None
                 priority = Priority.objects.get(id=priority_id) if priority_id else None
@@ -306,8 +325,12 @@ def create_request_technician(request):
                 if date_done_str:
                     date_done = timezone.make_aware(datetime.strptime(date_done_str, '%Y-%m-%dT%H:%M'))
 
+                # Генерация нового номера акта
+                last_act = RequestFix.objects.filter(delete_date__isnull=True).order_by('-act_number').first()
+                new_act_number = (last_act.act_number + 1) if last_act else 1
+
                 req = RequestFix(
-                    act_number=RequestFix.objects.filter(delete_date__isnull=True).count() + 1,
+                    act_number=new_act_number,
                     problem_description=description,
                     registration_date=timezone.now(),
                     completion_date=date_done,
@@ -321,6 +344,8 @@ def create_request_technician(request):
                 req.save()
                 messages.success(request, 'Заявка создана!')
                 return redirect('show_technician')
+            except Equipment.DoesNotExist:
+                messages.error(request, 'Оборудование не найдено')
             except Exception as e:
                 messages.error(request, f'Ошибка: {str(e)}')
 
@@ -342,13 +367,16 @@ def create_request_technician(request):
 
 
 # --------------------------------------------------------------
-# РЕДАКТИРОВАНИЕ
+# РЕДАКТИРОВАНИЕ ЗАЯВКИ
 def edit_request(request, request_id):
     if 'user_id' not in request.session or request.session.get('user_role') != 'Техник':
         messages.error(request, 'Нет доступа')
         return redirect('login_view')
+
     try:
+        # Ищем заявку по act_number (так как это PK)
         req = get_object_or_404(RequestFix, act_number=request_id, delete_date__isnull=True)
+
         technicians = Employee.objects.filter(delete_date__isnull=True, role__role_name='technician')
         statuses = EquipmentStatus.objects.filter(delete_date__isnull=True)
         equipment_list = Equipment.objects.filter(delete_date__isnull=True)
@@ -360,7 +388,7 @@ def edit_request(request, request_id):
             try:
                 technician_id = request.POST.get('assigned_technician')
                 description = request.POST.get('problem_description', '').strip()
-                equipment_id = request.POST.get('equipment')
+                equipment_inv_num = request.POST.get('equipment')  # Получаем инв. номер
                 category_id = request.POST.get('category')
                 priority_id = request.POST.get('priority')
                 stage_id = request.POST.get('repair_stage')
@@ -370,8 +398,9 @@ def edit_request(request, request_id):
                     messages.error(request, 'Описание обязательно')
                     return redirect('edit_request', request_id=request_id)
 
+                # ИСПРАВЛЕНИЕ: Ищем оборудование по inventory_number
+                req.equipment = Equipment.objects.get(inventory_number=equipment_inv_num, delete_date__isnull=True)
                 req.problem_description = description
-                req.equipment = Equipment.objects.get(id=equipment_id, delete_date__isnull=True)
                 req.assigned_technician = Employee.objects.get(id=technician_id) if technician_id else None
 
                 if category_id: req.category = RequestCategory.objects.get(id=category_id)
@@ -386,6 +415,8 @@ def edit_request(request, request_id):
                 req.save()
                 messages.success(request, 'Заявка обновлена!')
                 return redirect('show_technician')
+            except Equipment.DoesNotExist:
+                messages.error(request, 'Оборудование не найдено')
             except Exception as e:
                 messages.error(request, f'Ошибка: {str(e)}')
 
@@ -406,27 +437,39 @@ def edit_request(request, request_id):
 
 
 # --------------------------------------------------------------
-# УДАЛЕНИЕ (СОТРУДНИК)
+# МЯГКОЕ УДАЛЕНИЕ ЗАЯВКИ (ДОСТУПНО СОТРУДНИКУ И ТЕХНИКУ)
 def delete_request_customer(request, request_id):
-    if 'user_id' not in request.session or request.session.get('user_role') != 'Сотрудник':
-        messages.error(request, 'Нет доступа')
+    # 1. Проверка авторизации
+    if 'user_id' not in request.session:
+        messages.error(request, 'Необходимо авторизоваться')
         return redirect('login_view')
+
+    user_role = request.session.get('user_role', '')
+    user_id = request.session['user_id']
+
+    if user_role not in ['Сотрудник', 'Техник']:
+        messages.error(request, 'У вас нет доступа к удалению заявок')
+        return redirect('login_view')
+
     if request.method == 'POST':
         try:
-            # ИСПРАВЛЕНО: ищем по act_number
             req = RequestFix.objects.get(act_number=request_id, delete_date__isnull=True)
-            if req.requester.id != request.session['user_id']:
-                messages.error(request, 'Это не ваша заявка')
+            if req.requester.id != user_id:
+                messages.error(request, 'Вы можете удалить только свою собственную заявку!')
                 return redirect('show_customer')
             if not req.completion_date:
-                messages.error(request, 'Можно удалить только выполненную заявку')
+                messages.error(request, 'Можно удалить только выполненную заявку!')
                 return redirect('show_customer')
-
             req.delete_date = timezone.now()
             req.save()
-            messages.success(request, 'Заявка удалена')
+
+            messages.success(request, f'Заявка №{req.act_number} успешно удалена (архивирована)')
+
+        except RequestFix.DoesNotExist:
+            messages.error(request, 'Заявка не найдена или уже удалена')
         except Exception as e:
-            messages.error(request, f'Ошибка: {str(e)}')
+            messages.error(request, f'Ошибка при удалении: {str(e)}')
+
     return redirect('show_customer')
 
 
@@ -438,7 +481,6 @@ def delete_request_technician(request, request_id):
         return redirect('login_view')
     if request.method == 'POST':
         try:
-            # ИСПРАВЛЕНО: ищем по act_number
             req = RequestFix.objects.get(act_number=request_id, delete_date__isnull=True)
             req.delete()
             messages.success(request, 'Заявка полностью удалена')
