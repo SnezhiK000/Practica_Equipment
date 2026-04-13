@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="ru">
+<head>
+    <link rel="icon" href="{% static 'icon.png' %}" type="image/png">
+    <meta charset="UTF-8">
+    <title>Редактирование заявки №{{ request_obj.act_number }}</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #e8f5e9 0%, #b2dfdb 100%); color: #263238; padding: 20px; margin: 0; }
+        .container { max-width: 1000px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .nav-bar { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .nav-link { text-decoration: none; color: white; background: #26a69a; padding: 8px 15px; border-radius: 5px; font-weight: 600; font-size: 14px; }
+        .nav-link:hover { background: #00897b; }
+        .nav-link.danger { background: #ef5350; }
+        .info-block { background: #e0f7fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #00695c; }
+        .section { margin-bottom: 25px; padding: 15px; border: 1px solid #b2dfdb; border-radius: 5px; }
+        .section h3 { margin-top: 0; color: #00695c; font-size: 16px; }
+        .form-group { margin-bottom: 15px; }
+        .form-row { display: flex; gap: 15px; flex-wrap: wrap; }
+        .form-row .form-group { flex: 1; min-width: 200px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #004d40; font-size: 14px; }
+        select, textarea, input { width: 100%; padding: 10px; border: 1px solid #b0bec5; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
+        textarea { height: 80px; resize: vertical; }
+        button { background: #26a69a; color: white; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; }
+        button:hover { background: #00897b; }
+        .btn-secondary { background: #78909c; }
+        .btn-secondary:hover { background: #546e7a; }
+        .btn-danger { background: #ef5350; }
+        .btn-danger:hover { background: #c62828; }
+        .messages { color: #c62828; background: #ffebee; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ef9a9a; }
+        .cancel-link { display: inline-block; margin-left: 10px; color: #c62828; text-decoration: none; font-weight: 600; }
+        .item-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        .item-row select, .item-row input { flex: 1; }
+        .item-row button { width: auto; padding: 8px 15px; font-size: 14px; }
+        .help-text { font-size: 12px; color: #546e7a; margin-top: 5px; }
+    </style>
+</head>
+<body>
+<div style="background: linear-gradient(135deg, #00695c 0%, #00897b 100%); padding: 15px 20px; margin-bottom: 20px; border-bottom: 3px solid #4db6ac; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+    <div style="display: flex; align-items: center; gap: 15px; max-width: 1400px; margin: 0 auto;">
+        <img src="{% static 'logo.png' %}" alt="ГБУЗ РХ АМКБ" style="width: 50px; height: 50px; object-fit: contain; border-radius: 8px; background: white; padding: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div style="color: white;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 1px; font-family: 'Segoe UI', sans-serif; color: white;">ГБУЗ РХ АМКБ</h1>
+            <p style="margin: 0; font-size: 12px; color: white; font-weight: normal;">Система учёта заявок</p>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div class="nav-bar">
+        <a href="{% url 'show_technician' %}" class="nav-link">Назад</a>
+        <a href="{% url 'show_new_requests' %}" class="nav-link">Новые заявки</a>
+        <a href="{% url 'logout_view' %}" class="nav-link danger">Выйти</a>
+    </div>
+
+    <h2 style="color: #00695c; margin-top: 0;">Редактирование заявки №{{ request_obj.act_number }}</h2>
+    <p>Добро пожаловать, <strong>{{ user_name }}</strong></p>
+
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}{{ message }}{% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="info-block">
+        <div><strong>Заказчик:</strong> {{ request_obj.requester.last_name }} {{ request_obj.requester.first_name }} {{ request_obj.requester.middle_name }}</div>
+        <div><strong>Дата регистрации:</strong> {{ request_obj.registration_date|date:"d.m.Y H:i" }}</div>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="section">
+            <h3>Основная информация</h3>
+            <div class="form-group">
+                <label>Описание проблемы *: </label>
+                <textarea name="problem_description" required>{{ request_obj.problem_description }}</textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Оборудование *: </label>
+                    <select name="equipment" required>
+                        {% for equip in equipment_list %}
+                            <option value="{{ equip.inventory_number }}" {% if equip.inventory_number == request_obj.equipment.inventory_number %}selected{% endif %}>
+                                {{ equip.inventory_number }} - {{ equip.model.name }} ({{ equip.configuration }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Исполнитель: </label>
+                    <select name="assigned_technician">
+                        <option value="">-- Не назначен --</option>
+                        {% for tech in technicians %}
+                            <option value="{{ tech.id }}" {% if request_obj.assigned_technician and tech.id == request_obj.assigned_technician.id %}selected{% endif %}>
+                                {{ tech.last_name }} {{ tech.first_name }} {{ tech.middle_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Статус оборудования: </label>
+                    <select name="status">
+                        {% for status in statuses %}
+                            <option value="{{ status.id }}" {% if request_obj.equipment.status.id == status.id %}selected{% endif %}>
+                                {{ status.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Комментарий техника: </label>
+                    <textarea name="comment_technician">{{ request_obj.comment_technician|default:"" }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Детали заявки</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Категория: </label>
+                    <select name="category">
+                        <option value="">-- Нет --</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if request_obj.category and cat.id == request_obj.category.id %}selected{% endif %}>
+                                {{ cat.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Приоритет: </label>
+                    <select name="priority">
+                        <option value="">-- Нет --</option>
+                        {% for pri in priorities %}
+                            <option value="{{ pri.id }}" {% if request_obj.priority and pri.id == request_obj.priority.id %}selected{% endif %}>
+                                {{ pri.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Этап ремонта: </label>
+                    <select name="repair_stage">
+                        <option value="">-- Нет --</option>
+                        {% for stage in stages %}
+                            <option value="{{ stage.id }}" {% if request_obj.repair_stage and stage.id == request_obj.repair_stage.id %}selected{% endif %}>
+                                {{ stage.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Дата выполнения: </label>
+                <input type="datetime-local" name="completion_date" value="{{ request_obj.completion_date|date:'Y-m-d\TH:i' }}">
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Запчасти</h3>
+            <div id="spare-parts-container">
+                {% for item in request_obj.used_spare_parts.all %}
+                <div class="item-row">
+                    <select name="spare_part_id[]">
+                        {% for part in spare_parts_list %}
+                            <option value="{{ part.id }}" {% if part.id == item.spare_part.id %}selected{% endif %}>
+                                {{ part.name }} - {{ part.cost }} ₽ (остаток: {{ part.quantity }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <input type="number" name="spare_part_quantity[]" value="{{ item.quantity }}" min="1" placeholder="Кол-во" style="width: 100px;">
+                    <button type="button" class="btn-danger" onclick="this.parentElement.remove()">✕</button>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn-secondary" onclick="addSparePartField()" style="margin-top: 10px;">+ Добавить запчасть</button>
+            <div class="help-text">Укажите количество использованных запчастей</div>
+        </div>
+
+        <div class="section">
+            <h3>Дополнительные услуги</h3>
+            <div id="services-container">
+                {% for item in request_obj.used_services.all %}
+                <div class="item-row">
+                    <select name="service_id[]">
+                        {% for service in services_list %}
+                            <option value="{{ service.id }}" {% if service.id == item.service.id %}selected{% endif %}>
+                                {{ service.name }} - {{ service.cost }} ₽
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <input type="number" name="service_quantity[]" value="{{ item.quantity }}" min="1" placeholder="Кол-во" style="width: 100px;">
+                    <input type="file" name="service_file[]" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="flex: 1;">
+                    <button type="button" class="btn-danger" onclick="this.parentElement.remove()">✕</button>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn-secondary" onclick="addServiceField()" style="margin-top: 10px;">+ Добавить услугу</button>
+            <div class="help-text">Прикрепите чек об оплате услуги (PDF, JPG, PNG, DOC)</div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button type="submit">Сохранить</button>
+            <a href="{% url 'show_technician' %}" class="cancel-link">Отмена</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    function addSparePartField() {
+        const container = document.getElementById('spare-parts-container');
+        const div = document.createElement('div');
+        div.className = 'item-row';
+        div.innerHTML = `
+            <select name="spare_part_id[]" required>
+                {% for part in spare_parts_list %}
+                    <option value="{{ part.id }}">{{ part.name }} - {{ part.cost }} ₽</option>
+                {% endfor %}
+            </select>
+            <input type="number" name="spare_part_quantity[]" min="1" placeholder="Кол-во" style="width: 100px;" required>
+            <button type="button" class="btn-danger" onclick="this.parentElement.remove()">✕</button>
+        `;
+        container.appendChild(div);
+    }
+
+    function addServiceField() {
+        const container = document.getElementById('services-container');
+        const div = document.createElement('div');
+        div.className = 'item-row';
+        div.innerHTML = `
+            <select name="service_id[]" required>
+                {% for service in services_list %}
+                    <option value="{{ service.id }}">{{ service.name }} - {{ service.cost }} ₽</option>
+                {% endfor %}
+            </select>
+            <input type="number" name="service_quantity[]" min="1" placeholder="Кол-во" style="width: 100px;" required>
+            <input type="file" name="service_file[]" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="flex: 1;">
+            <button type="button" class="btn-danger" onclick="this.parentElement.remove()">✕</button>
+        `;
+        container.appendChild(div);
+    }
+</script>
+</body>
+</html>
